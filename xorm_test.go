@@ -12,6 +12,7 @@ import (
 	"github.com/go-xorm/core"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -99,6 +100,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestPing(t *testing.T) {
+	assert.NoError(t, prepareEngine())
+
 	if err := testEngine.Ping(); err != nil {
 		t.Fatal(err)
 	}
