@@ -927,6 +927,7 @@ func (engine *Engine) mapType(parsingTables map[reflect.Type]*core.Table, v refl
 		if ormTagStr != "" {
 			col = &core.Column{
 				FieldName:       t.Field(i).Name,
+				FieldType:       t.Field(i).Type,
 				Nullable:        true,
 				IsPrimaryKey:    false,
 				IsAutoIncrement: false,
@@ -1040,6 +1041,7 @@ func (engine *Engine) mapType(parsingTables map[reflect.Type]*core.Table, v refl
 			col = core.NewColumn(
 				engine.ColumnMapper.Obj2Table(t.Field(i).Name),
 				t.Field(i).Name,
+
 				sqlType,
 				sqlType.DefaultLength,
 				sqlType.DefaultLength2,
@@ -1050,6 +1052,7 @@ func (engine *Engine) mapType(parsingTables map[reflect.Type]*core.Table, v refl
 				idFieldColName = col.Name
 			}
 
+			col.FieldType = t.Field(i).Type
 			ctx.col = col
 		}
 		if col.IsAutoIncrement {
