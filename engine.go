@@ -1470,11 +1470,11 @@ func (engine *Engine) Get(bean interface{}) (bool, error) {
 	return session.Get(bean)
 }
 
-// EagerLoad loads bean's belongs to tag field immedicatlly
-func (engine *Engine) EagerLoad(bean interface{}) error {
+// EagerGet loads bean's belongs to tag field immedicatlly
+func (engine *Engine) EagerGet(bean interface{}) error {
 	session := engine.NewSession()
 	defer session.Close()
-	return session.EagerLoad(bean)
+	return session.EagerGet(bean)
 }
 
 // Find retrieve records from table, condiBeans's non-empty fields

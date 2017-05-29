@@ -75,7 +75,6 @@ func (session *Session) nocacheGet(beanKind reflect.Kind, bean interface{}, sqlS
 	if err != nil {
 		return false, err
 	}
-
 	defer rawRows.Close()
 
 	if !rawRows.Next() {
@@ -93,7 +92,6 @@ func (session *Session) nocacheGet(beanKind reflect.Kind, bean interface{}, sqlS
 		if err := session.Statement.setRefValue(dataStruct); err != nil {
 			return false, err
 		}
-
 		scanResults, err := session.row2Slice(rawRows, fields, len(fields), bean)
 		if err != nil {
 			return false, err
