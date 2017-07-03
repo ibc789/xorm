@@ -216,7 +216,7 @@ func (session *Session) bytes2Value(col *core.Column, fieldValue *reflect.Value,
 					return err
 				}
 
-				if err = session.getByPK(pk, fieldValue); err != nil {
+				if err = session.Engine.getByPK(pk, fieldValue); err != nil {
 					return err
 				}
 			}
@@ -480,7 +480,7 @@ func (session *Session) bytes2Value(col *core.Column, fieldValue *reflect.Value,
 						return err
 					}
 
-					if err = session.getByPK(pk, fieldValue); err != nil {
+					if err = session.Engine.getByPK(pk, fieldValue); err != nil {
 						return err
 					}
 				}

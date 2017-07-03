@@ -17,6 +17,12 @@ import (
 	"github.com/go-xorm/core"
 )
 
+type loadClosure struct {
+	Func       func(core.PK, *reflect.Value) error
+	pk         core.PK
+	fieldValue *reflect.Value
+}
+
 // Session keep a pointer to sql.DB and provides all execution of all
 // kind of database operations.
 type Session struct {
@@ -40,6 +46,8 @@ type Session struct {
 
 	beforeClosures []func(interface{})
 	afterClosures  []func(interface{})
+
+	afterLoadClosures []loadClosure
 
 	prepareStmt bool
 	stmtCache   map[uint32]*core.Stmt //key: hash.Hash32 of (queryStr, len(queryStr))
@@ -311,7 +319,18 @@ func (session *Session) rows2Beans(rows *core.Rows, fields []string, fieldsCount
 		if err != nil {
 			return err
 		}
+
 		pk, err := session.slice2Bean(scanResults, fields, fieldsCount, bean, &dataStruct, table)
+		if b, hasAfterSet := bean.(AfterSetProcessor); hasAfterSet {
+			for ii, key := range fields {
+				b.AfterSet(key, Cell(scanResults[ii].(*interface{})))
+			}
+		}
+
+		// handle afterClosures
+		for _, closure := range session.afterClosures {
+			closure(bean)
+		}
 		if err != nil {
 			return err
 		}
@@ -347,19 +366,6 @@ func (session *Session) row2Slice(rows *core.Rows, fields []string, fieldsCount 
 }
 
 func (session *Session) slice2Bean(scanResults []interface{}, fields []string, fieldsCount int, bean interface{}, dataStruct *reflect.Value, table *core.Table) (core.PK, error) {
-	defer func() {
-		if b, hasAfterSet := bean.(AfterSetProcessor); hasAfterSet {
-			for ii, key := range fields {
-				b.AfterSet(key, Cell(scanResults[ii].(*interface{})))
-			}
-		}
-
-		// handle afterClosures
-		for _, closure := range session.afterClosures {
-			closure(bean)
-		}
-	}()
-
 	var tempMap = make(map[string]int)
 	var pk core.PK
 	for ii, key := range fields {
@@ -613,14 +619,18 @@ func (session *Session) slice2Bean(scanResults []interface{}, fields []string, f
 						if fieldValue.IsNil() {
 							fieldValue.Set(reflect.New(fieldValue.Type()))
 						}
-						if err = session.getByPK(pk, fieldValue); err != nil {
-							return nil, err
-						}
+						session.afterLoadClosures = append(session.afterLoadClosures, loadClosure{
+							Func:       session.Engine.getByPK,
+							pk:         pk,
+							fieldValue: fieldValue,
+						})
 					} else {
 						v := fieldValue.Addr()
-						if err = session.getByPK(pk, &v); err != nil {
-							return nil, err
-						}
+						session.afterLoadClosures = append(session.afterLoadClosures, loadClosure{
+							Func:       session.Engine.getByPK,
+							pk:         pk,
+							fieldValue: &v,
+						})
 					}
 					hasAssigned = true
 				} else if col.AssociateType == core.AssociateBelongsTo {
@@ -651,13 +661,19 @@ func (session *Session) slice2Bean(scanResults []interface{}, fields []string, f
 						}
 
 						pk[0] = reflect.ValueOf(pk[0]).Elem().Interface()
-						if err = session.getByPK(pk, fieldValue); err != nil {
-							return nil, err
-						}
+						fmt.Println("=====", fieldValue, fieldValue.IsNil())
+						fmt.Printf("%#v", fieldValue)
+						session.afterLoadClosures = append(session.afterLoadClosures, loadClosure{
+							Func:       session.Engine.getByPK,
+							pk:         pk,
+							fieldValue: fieldValue,
+						})
+
 						hasAssigned = true
 					} else if col.AssociateType == core.AssociateBelongsTo {
 						hasAssigned = true
 						if fieldValue.IsNil() {
+							// FIXME: find id column
 							structInter := reflect.New(fieldValue.Type().Elem())
 							fieldValue.Set(structInter)
 						}
@@ -806,7 +822,7 @@ func (session *Session) slice2Bean(scanResults []interface{}, fields []string, f
 	return pk, nil
 }
 
-func (session *Session) getByPK(pk core.PK, fieldValue *reflect.Value) error {
+func (engine *Engine) getByPK(pk core.PK, fieldValue *reflect.Value) error {
 	if !isPKZero(pk) {
 		var structInter reflect.Value
 		if fieldValue.Kind() == reflect.Ptr {
@@ -819,16 +835,18 @@ func (session *Session) getByPK(pk core.PK, fieldValue *reflect.Value) error {
 			structInter = fieldValue.Addr()
 		}
 
+		fmt.Printf("%x\n", fieldValue)
+		fmt.Println("222------", fieldValue.IsNil(), structInter.IsNil())
+
 		// FIXME: don't use a new session to do that
-		newsession := session.Engine.NewSession()
-		defer newsession.Close()
-		has, err := newsession.ID(pk).NoCascade().Get(structInter.Interface())
+		has, err := engine.ID(pk).NoCascade().Get(structInter.Interface())
 		if err != nil {
 			return err
 		}
 		if has {
 			if fieldValue.Kind() == reflect.Ptr && fieldValue.IsNil() {
 				fieldValue.Set(structInter)
+				fmt.Println("333", fieldValue.IsNil())
 			}
 		} else {
 			return errors.New("cascade obj is not exist")

@@ -128,6 +128,19 @@ func (rows *Rows) Scan(bean interface{}) error {
 		return err
 	}
 
+	defer func() {
+		if b, hasAfterSet := bean.(AfterSetProcessor); hasAfterSet {
+			for ii, key := range rows.fields {
+				b.AfterSet(key, Cell(scanResults[ii].(*interface{})))
+			}
+		}
+
+		// handle afterClosures
+		for _, closure := range rows.session.afterClosures {
+			closure(bean)
+		}
+	}()
+
 	_, err = rows.session.slice2Bean(scanResults, rows.fields, len(rows.fields), bean, &dataStruct, rows.session.Statement.RefTable)
 	return err
 }
